@@ -37,10 +37,6 @@ class SquareNodeGraph:
     def get_coordinate_hash(x: int, y: int) -> str:
         return f'{x},{y}'
 
-    @staticmethod
-    def get_coordinate_pair(coordinate_hash: str) -> [int, int]:
-        return coordinate_hash.split(',')
-
     def __str__(self):
         total_output = ''
 
@@ -107,7 +103,7 @@ def get_edge_coordinates_from_corners(corner_coordinates: Dict[Edge, Tuple[int, 
 def diamond_square(
     graph: SquareNodeGraph,
     corner_coordinates: Dict[Edge, Tuple[int, int]],
-    noise_scaling_factor: float = 1,
+    noise_scaling_factor: float = 1.0,
     noise_scaling_function: Callable = lambda f: f * 0.5
 ):
 
