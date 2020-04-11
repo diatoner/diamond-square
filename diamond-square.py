@@ -1,4 +1,5 @@
 import argparse
+from collections import deque
 from enum import IntEnum
 import random
 from typing import Callable, Dict, Tuple
@@ -201,79 +202,84 @@ def diamond_square_iterative(
 ):
 
     # Set up preliminary info
-    step: int = graph.size
-    half_step: int = int(step * 0.5)
-    visited = []
+    quads = deque([])
+    quads.append({
+        Edge.Top | Edge.Left: [0, 0],
+        Edge.Top | Edge.Right: [graph.size-1, 0],
+        Edge.Bottom | Edge.Left: [0, graph.size-1],
+        Edge.Bottom | Edge.Right: [graph.size-1, graph.size-1],
+    })
+    latest_min_sidelength = graph.size
 
-    while half_step > 0:
+    while len(quads):
+        corners = quads.popleft()
 
-        # Prepare iteration
-        nodes = []
+        # Diamond step
+        midpoint = get_midpoint_from_tuples(
+            corners[Edge.Top | Edge.Left],
+            corners[Edge.Bottom | Edge.Right],
+        )
 
-        # Conduct the diamond step
-        for x in range(half_step, graph.size, step):
-            for y in range(half_step, graph.size, step):
-                if [x, y] not in visited:
-                    nodes.append([x, y])
+        corner_values = [graph.get_node(c[0], c[1]) for c in corners.values()]
+        mean_corner_value = sum(corner_values) / len(corner_values)
+        midpoint_value = mean_corner_value + random.uniform(-1, 1) * noise_scaling_factor
+        midpoint_value = float(clamp(0, midpoint_value, 1))
 
-        for node in nodes:
-            x, y = node
-            corners = [
-                [x - half_step, y - half_step],
-                [x + half_step, y - half_step],
-                [x - half_step, y + half_step],
-                [x + half_step, y + half_step],
+        graph.set_node(
+            midpoint[0],
+            midpoint[1],
+            midpoint_value
+        )
+
+        # Square step
+        edges = get_edge_coordinates_from_corners(corners)
+        for edge, edge_coords in edges.items():
+            x, y = edge_coords
+            if graph.get_node(x, y) != 0:
+                continue
+            adjacent_values: List[float] = [ midpoint_value ]
+            for index, corner in enumerate(corners):
+                is_relevant_corner: bool = (edge & corner) != 0
+                if is_relevant_corner:
+                    adjacent_values.append(corner_values[index])
+            mean_adjacent_value = sum(adjacent_values) / len(adjacent_values) 
+            edge_value = mean_adjacent_value + random.uniform(-1, 1) * noise_scaling_factor
+            edge_value = float(clamp(0, edge_value, 1))
+            graph.set_node(x, y, edge_value)
+
+        # Recursion
+        side_length = corners[Edge.Top | Edge.Right][0] - corners[Edge.Top | Edge.Left][0]
+        if side_length < latest_min_sidelength:
+            noise_scaling_factor = noise_scaling_function(noise_scaling_factor)
+            latest_min_sidelength = side_length
+        if side_length > 1:
+            subquads = [
+                {
+                    Edge.Top | Edge.Left: corners[Edge.Top | Edge.Left],
+                    Edge.Top | Edge.Right: edges[Edge.Top],
+                    Edge.Bottom | Edge.Left: edges[Edge.Left],
+                    Edge.Bottom | Edge.Right: midpoint,
+                },
+                {
+                    Edge.Top | Edge.Left: edges[Edge.Top],
+                    Edge.Top | Edge.Right: corners[Edge.Top | Edge.Right],
+                    Edge.Bottom | Edge.Left: midpoint,
+                    Edge.Bottom | Edge.Right: edges[Edge.Right],
+                },
+                {
+                    Edge.Top | Edge.Left: edges[Edge.Left],
+                    Edge.Top | Edge.Right: midpoint,
+                    Edge.Bottom | Edge.Left: corners[Edge.Bottom | Edge.Left],
+                    Edge.Bottom | Edge.Right: edges[Edge.Bottom],
+                },
+                {
+                    Edge.Top | Edge.Left: midpoint,
+                    Edge.Top | Edge.Right: edges[Edge.Right],
+                    Edge.Bottom | Edge.Left: edges[Edge.Bottom],
+                    Edge.Bottom | Edge.Right: corners[Edge.Bottom | Edge.Right],
+                },
             ]
-            corners[:] = [
-                a for a in corners
-                if a[0] >= 0 and a[1] >= 0 and a[0] < graph.size and a[1] < graph.size
-            ]
-            corner_values = [ graph.get_node(c[0], c[1]) for c in corners ]
-            mean_value = sum(corner_values) / len(corner_values)
-            noise = random.uniform(-1, 1) * noise_scaling_factor
-            node_value = float(clamp(0, mean_value + noise, 1))
-            graph.set_node(x, y, node_value)
-
-            if node not in visited:
-                visited.append(node)
-            for corner in corners:
-                if corner not in visited:
-                    visited.append(corner)
-
-        # Conduct the square step
-        nodes = []
-        for x in range(0, graph.size, half_step):
-            for y in range(0, graph.size, half_step):
-                if [x,y] not in visited:
-                    nodes.append([x,y])
-        for node in nodes:
-            x, y = node
-            adjacents = [
-                [ x - half_step, y ],
-                [ x + half_step, y ],
-                [ x, y - half_step ],
-                [ x, y + half_step ],
-            ]
-            adjacents[:] = [
-                a for a in adjacents
-                if a[0] >= 0 and a[1] >= 0 and a[0] < graph.size and a[1] < graph.size
-            ]
-            adjacent_values = [ graph.get_node(c[0], c[1]) for c in adjacents ]
-            mean_value = sum(adjacent_values) / len(adjacent_values)
-            noise = random.uniform(-1, 1) * noise_scaling_factor
-            node_value = float(clamp(0, mean_value + noise, 1))
-            graph.set_node(x, y, node_value)
-
-            if node not in visited:
-                visited.append(node)
-            for adjacent in adjacents:
-                if adjacent not in visited:
-                    visited.append(adjacent)
-
-        # Manage iteration
-        step = half_step
-        half_step = int(step * 0.5)
-        noise_scaling_factor = noise_scaling_function(noise_scaling_factor)
+            quads.extend(subquads)
 
 
 def run():
