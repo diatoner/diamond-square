@@ -194,9 +194,89 @@ def diamond_square(
         )
 
 
-if __name__ == '__main__':
+def diamond_square_iterative(
+    graph: SquareNodeGraph,
+    noise_scaling_factor: float = 1.0,
+    noise_scaling_function: Callable = lambda f: f * 0.5
+):
 
-    # Usage: python diamond-square.py [size]
+    # Set up preliminary info
+    step: int = graph.size
+    half_step: int = int(step * 0.5)
+    visited = []
+
+    while half_step > 0:
+
+        # Prepare iteration
+        nodes = []
+
+        # Conduct the diamond step
+        for x in range(half_step, graph.size, step):
+            for y in range(half_step, graph.size, step):
+                if [x, y] not in visited:
+                    nodes.append([x, y])
+
+        for node in nodes:
+            x, y = node
+            corners = [
+                [x - half_step, y - half_step],
+                [x + half_step, y - half_step],
+                [x - half_step, y + half_step],
+                [x + half_step, y + half_step],
+            ]
+            corners[:] = [
+                a for a in corners
+                if a[0] >= 0 and a[1] >= 0 and a[0] < graph.size and a[1] < graph.size
+            ]
+            corner_values = [ graph.get_node(c[0], c[1]) for c in corners ]
+            mean_value = sum(corner_values) / len(corner_values)
+            noise = random.uniform(-1, 1) * noise_scaling_factor
+            node_value = float(clamp(0, mean_value + noise, 1))
+            graph.set_node(x, y, node_value)
+
+            if node not in visited:
+                visited.append(node)
+            for corner in corners:
+                if corner not in visited:
+                    visited.append(corner)
+
+        # Conduct the square step
+        nodes = []
+        for x in range(0, graph.size, half_step):
+            for y in range(0, graph.size, half_step):
+                if [x,y] not in visited:
+                    nodes.append([x,y])
+        for node in nodes:
+            x, y = node
+            adjacents = [
+                [ x - half_step, y ],
+                [ x + half_step, y ],
+                [ x, y - half_step ],
+                [ x, y + half_step ],
+            ]
+            adjacents[:] = [
+                a for a in adjacents
+                if a[0] >= 0 and a[1] >= 0 and a[0] < graph.size and a[1] < graph.size
+            ]
+            adjacent_values = [ graph.get_node(c[0], c[1]) for c in adjacents ]
+            mean_value = sum(adjacent_values) / len(adjacent_values)
+            noise = random.uniform(-1, 1) * noise_scaling_factor
+            node_value = float(clamp(0, mean_value + noise, 1))
+            graph.set_node(x, y, node_value)
+
+            if node not in visited:
+                visited.append(node)
+            for adjacent in adjacents:
+                if adjacent not in visited:
+                    visited.append(adjacent)
+
+        # Manage iteration
+        step = half_step
+        half_step = int(step * 0.5)
+        noise_scaling_factor = noise_scaling_function(noise_scaling_factor)
+
+
+def run():
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -204,6 +284,16 @@ if __name__ == '__main__':
         type=int,
         help='The side length of the square node graph to generate',
         default=3,
+    )
+    parser.add_argument(
+        '--mode', '-m',
+        type=str,
+        choices=['recursive', 'iterative'],
+        default='recursive',
+    )
+    parser.add_argument(
+        '--print', '-p',
+        action='store_true',
     )
 
     args = parser.parse_args()
@@ -219,20 +309,35 @@ if __name__ == '__main__':
     graph.set_node(size-1, size-1, random.uniform(0, 1))
 
     # Conduct the actual algorithm
-    diamond_square(
-        graph=graph,
-        corner_coordinates={
-            Edge.Top | Edge.Left: [0, 0],
-            Edge.Top | Edge.Right: [size-1, 0],
-            Edge.Bottom | Edge.Left: [0, size-1],
-            Edge.Bottom | Edge.Right: [size-1, size-1],
-        },
-        noise_scaling_factor=1,
-        noise_scaling_function=lambda f: f / 3
-    )
+    if args.mode == 'recursive':
+
+        diamond_square(
+            graph=graph,
+            corner_coordinates={
+                Edge.Top | Edge.Left: [0, 0],
+                Edge.Top | Edge.Right: [size-1, 0],
+                Edge.Bottom | Edge.Left: [0, size-1],
+                Edge.Bottom | Edge.Right: [size-1, size-1],
+            },
+            noise_scaling_factor=1,
+            noise_scaling_function=lambda f: f / 3
+        )
+
+    else:
+
+        diamond_square_iterative(
+            graph=graph,
+            noise_scaling_factor=0.2,
+        )
 
     # Output as NumPy array
     # array = grid.as_nparray()
     # ... do some plotting
 
-    print(graph)
+    if args.print:
+        print(graph)
+
+
+if __name__ == '__main__':
+
+    run()
