@@ -1,5 +1,4 @@
 import argparse
-from collections import deque
 from enum import IntEnum
 import random
 from typing import Callable, Dict, Tuple
@@ -77,7 +76,7 @@ def clamp(a: float, n: float, b: float) -> float:
 
 
 def get_midpoint_from_tuples(first: [int, int], second: [int, int]) -> [int, int]:
-    return [int(0.5 * (first[0] + second[0])), int(0.5 * (first[1] + second[1]))]
+    return [(first[0] + second[0]) >> 1, (first[1] + second[1]) >> 1]
 
 
 def get_edge_coordinates_from_corners(corner_coordinates: Dict[Edge, Tuple[int, int]]) -> Dict[Edge, Tuple[int, int]]:
@@ -202,7 +201,7 @@ def diamond_square_iterative(
 ):
 
     # Set up preliminary info
-    quads = deque([])
+    quads = []
     quads.append({
         Edge.Top | Edge.Left: [0, 0],
         Edge.Top | Edge.Right: [graph.size-1, 0],
@@ -212,7 +211,7 @@ def diamond_square_iterative(
     latest_min_sidelength = graph.size
 
     while len(quads):
-        corners = quads.popleft()
+        corners = quads.pop()
 
         # Diamond step
         midpoint = get_midpoint_from_tuples(
